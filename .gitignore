@@ -1,2 +1,4 @@
 sonar_measures.csv
 output.txt
+test_http_result.txt
+*.sh
