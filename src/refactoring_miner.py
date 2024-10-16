@@ -12,4 +12,4 @@ async def run_miner(repo_path, miner_result_directory, run_subcommand):
         command = f"RefactoringMiner -a {dir_path} -json {miner_result_directory}{dir_name}.json"
         refactoring_commands.append(command)
 
-    await asyncio.gather(*[run_subcommand(command) for command in refactoring_commands])
+    await asyncio.gather(*(run_subcommand(command) for command in refactoring_commands))

@@ -71,44 +71,68 @@ async def run_subcommand(cmd):
         print(f"[stderr]\n{stderr.decode()}")
 
 
+def convert_ssh_to_https(ssh_urls):
+    https_urls = []
+
+    for url in ssh_urls:
+        result = url.replace("git@github.com:", "https://github.com/")
+        https_urls.append(result)
+
+    return https_urls
+
+
+def convert_https_to_ssh(https_urls):
+    ssh_urls = []
+
+    for url in https_urls:
+        result = url.replace("https://github.com/", "git@github.com:")
+        ssh_urls.append(result)
+
+    return ssh_urls
+
+
 async def get_repositories(csv_file):
-    urls = get_github_urls(csv_file)
-    github_urls_filepath = "results/github_urls.txt"
-    http_statuses_filepath = "results/http_statuses.txt"
-    ok_repos_filepath = "results/ok_repos.txt"
-    unavailable_repos_filepath = "results/unavailable_repos.txt"
+    https_urls = get_github_urls(csv_file)
+    ssh_urls = convert_https_to_ssh(https_urls)
     os.makedirs("results", exist_ok=True)
     http_statuses = []
     ok_repos = []
     unavailable_repos = []
 
-    # Go through sonar_measures and format unique github urls
-    write_to_text_file_and_print(urls, github_urls_filepath, "All repositories:")
+    # Write urls to a file
+    write_to_text_file_and_print(ssh_urls, "results/ssh_urls.txt", "All repositories:")
+    write_to_text_file_and_print(
+        https_urls, "results/https_urls.txt", "All repositories:"
+    )
 
     # Test the http responses of the github urls, eg. 200, 301, 400
     async with ClientSession() as session:
         print("\nHTTP statuses of the repositories:")
-        http_statuses = await get_http_statuses_for_urls(session, urls)
+        http_statuses = await get_http_statuses_for_urls(session, https_urls)
 
     # Write the http results to a file
-    write_to_text_file(http_statuses, http_statuses_filepath)
+    write_to_text_file(http_statuses, "results/https_statuses.txt")
 
     # Sort the received http responses to 200 OK and 301/400 NOT OK
     for status in http_statuses:
         if "200" in status:
             stripped_status = re.sub(r" \d+$", "", status)
-            ok_repos.append(stripped_status)
+            ok_repos.append(
+                stripped_status.replace("https://github.com/", "git@github.com:")
+            )
         else:
             stripped_status = re.sub(r" \d+$", "", status)
-            unavailable_repos.append(stripped_status)
+            unavailable_repos.append(
+                stripped_status.replace("https://github.com/", "git@github.com:")
+            )
 
     # Write the available repos to a file
-    write_to_text_file(ok_repos, ok_repos_filepath)
+    write_to_text_file(ok_repos, "results/ok_repos.txt")
     print("\nOK repositories are available in ok_repos.txt file")
 
     # Write the unavailable repos to a file
     write_to_text_file_and_print(
-        unavailable_repos, unavailable_repos_filepath, "Unavailable repositories:"
+        unavailable_repos, "results/unavailable_repos.txt", "Unavailable repositories:"
     )
 
     return ok_repos
