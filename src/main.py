@@ -1,29 +1,35 @@
-import pandas as pd
+import asyncio
+
+import refactoring_miner
+import repository_cloner
+import repository_fetcher
 
 
-df = pd.read_csv("sonar_measures.csv", low_memory=False, dtype={7: str, 8: str})
+async def run_subcommand(cmd):
+    print(f"Executing command: {cmd}")
+    proc = await asyncio.create_subprocess_shell(
+        cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+    )
 
-project_names = df["project"]
+    stdout, stderr = await proc.communicate()
 
-project_names = project_names.apply(
-    lambda project: project.removeprefix("apache_")
-    .replace("-master", "")
-    .removeprefix("apache-")
-)
-
-project_names = project_names.drop_duplicates()
-
-github_urls = []
-
-for project in project_names:
-    url = f"https://github.com/apache/{project}"
-    github_urls.append(url)
+    print(f"[{cmd!r} exited with {proc.returncode}]")
+    if stdout:
+        print(f"[stdout]\n{stdout.decode()}")
+    if stderr:
+        print(f"[stderr]\n{stderr.decode()}")
+    if not stdout and not stderr:
+        print(f"No output for command: {cmd!r} (return code: {proc.returncode})")
 
 
-def main():
-    for url in github_urls:
-        print(url)
+async def main():
+    # TODO: Use the text files as input instead to allow calling for modules separately
+    repository_dir = "/home/kristian/devops_repositories/"
+    repos_to_clone = await repository_fetcher.get_repositories("sonar_measures.csv")
+    await repository_cloner.clone(repos_to_clone, repository_dir, run_subcommand)
+    await refactoring_miner.run_miner(
+        repository_dir, "/home/kristian/refactoringminer_results/", run_subcommand
+    )
 
 
-if __name__ == "__main__":
-    main()
+asyncio.run(main())
