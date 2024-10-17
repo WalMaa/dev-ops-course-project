@@ -6,13 +6,16 @@ Fun little course project to mine software repositories and to conduct analysis 
 
 [RefactoringMiner](https://github.com/tsantalis/RefactoringMiner?tab=readme-ov-file#general-info) is mandatory for the application to work. Install it and make sure the binary can be called with the command RefactoringMiner (eg. you could create a symlink in /usr/local/bin to point to the RefactoringMiner executable)
 
-Provide the following filepaths in _config.ini_:
+Provide the following paths in _config.ini_:
 
 ```ini
+[files]
+csv_file =
+
 [paths]
-csv_dir = <source_csv>
-cloned_repositories_dir = <existing_directory
-refactoring_results_dir = <existing_directory>
+cloned_repositories_dir =
+refactoring_results_dir =
+refactoring_type_results_dir =
 ```
 
 The directories should be empty before using the app.
