@@ -14,27 +14,25 @@ async def main():
 
     csv_file = config["files"]["csv_file"]
     cloned_repositories_dir = config["paths"]["cloned_repositories_dir"]
-    refactoring_results_dir = config["paths"]["refactoring_results_dir"]
-    refactoring_type_results_dir = config["paths"]["refactoring_type_results_dir"]
+    refactoring_miner_exec = config["executables"]["refactoring_miner_exec"]
 
-    paths = {
+    envs = {
+        "csv_file": csv_file,
         "cloned_repositories_dir": cloned_repositories_dir,
-        "refactoring_results_dir": refactoring_results_dir,
-        "refactoring_type_results_dir": refactoring_type_results_dir,
+        "refactoring_miner_exec": refactoring_miner_exec,
     }
 
-    for key, path in paths.items():
+    for key, path in envs.items():
         if len(path) < 5:
             print(f"Provide a proper directory for {key} in config.ini")
             exit(1)
 
-    for path in paths.values():
-        os.makedirs(path, exist_ok=True)
+    os.makedirs(cloned_repositories_dir, exist_ok=True)
 
-    await repository_fetcher.get_repositories(csv_file)
-    await repository_cloner.clone(cloned_repositories_dir)
-    refactoring_miner.run_miner(cloned_repositories_dir, refactoring_results_dir)
-    await analyzer.analyze(refactoring_results_dir, refactoring_type_results_dir)
+    # await repository_fetcher.get_repositories(csv_file)
+    # await repository_cloner.clone(cloned_repositories_dir)
+    # refactoring_miner.run_miner(cloned_repositories_dir, refactoring_miner_exec)
+    await analyzer.analyze()
 
 
 asyncio.run(main())

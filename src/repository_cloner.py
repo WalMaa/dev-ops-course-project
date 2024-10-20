@@ -3,22 +3,16 @@ import os
 
 
 async def run_subcommand(cmd):
-    print(cmd)
-
     proc = await asyncio.create_subprocess_shell(
         cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
     )
 
     try:
         stdout, stderr = await proc.communicate()
-        print(f"{cmd!r} exited with {proc.returncode}")
-
         if stdout:
-            print(f"[stdout]\n{stdout.decode()}")
+            print(f"{stdout.decode()}")
         if stderr:
-            print(f"[stderr]\n{stderr.decode()}")
-        if not stdout and not stderr:
-            print(f"No output for command: {cmd!r} (return code: {proc.returncode})")
+            print(f"{stderr.decode()}")
     except asyncio.TimeoutError:
         proc.kill()
         print(f"{cmd!r} timed out and was killed")
@@ -29,13 +23,17 @@ async def run_subcommand(cmd):
 async def clone(directory):
     clone_commands = []
 
-    with open("results/ok_repos.txt", "r") as file:
+    with open("results/repo_lists/ok_repos.txt", "r") as file:
         repositories = file.readlines()
 
         os.chdir(directory)
 
-        for repository in repositories:
-            command = f"git clone {repository}"
+        # Matti: range(0, 87)
+        # Kristian: range(88, 179)
+        # Arttu: range(180, 269)
+        # Walter: range(270, len(repositories))
+        for index in range(88, 179):
+            command = f"git clone {repositories[index]}"
             clone_commands.append(command)
 
         await asyncio.gather(*(run_subcommand(command) for command in clone_commands))

@@ -95,14 +95,17 @@ async def get_repositories(csv_file):
     https_urls = get_github_urls(csv_file)
     ssh_urls = convert_https_to_ssh(https_urls)
     os.makedirs("results", exist_ok=True)
+    os.makedirs("results/repo_lists", exist_ok=True)
     http_statuses = []
     ok_repos = []
     unavailable_repos = []
 
     # Write urls to a file
-    write_to_text_file_and_print(ssh_urls, "results/ssh_urls.txt", "All repositories:")
     write_to_text_file_and_print(
-        https_urls, "results/https_urls.txt", "All repositories:"
+        ssh_urls, "results/repo_lists/ssh_urls.txt", "All repositories:"
+    )
+    write_to_text_file_and_print(
+        https_urls, "results/repo_lists/https_urls.txt", "All repositories:"
     )
 
     # Test the http responses of the github urls, eg. 200, 301, 400
@@ -111,7 +114,7 @@ async def get_repositories(csv_file):
         http_statuses = await get_http_statuses_for_urls(session, https_urls)
 
     # Write the http results to a file
-    write_to_text_file(http_statuses, "results/https_statuses.txt")
+    write_to_text_file(http_statuses, "results/repo_lists/https_statuses.txt")
 
     # Sort the received http responses to 200 OK and 301/400 NOT OK
     for status in http_statuses:
@@ -127,12 +130,14 @@ async def get_repositories(csv_file):
             )
 
     # Write the available repos to a file
-    write_to_text_file(ok_repos, "results/ok_repos.txt")
+    write_to_text_file(ok_repos, "results/repo_lists/ok_repos.txt")
     print("\nOK repositories are available in ok_repos.txt file")
 
     # Write the unavailable repos to a file
     write_to_text_file_and_print(
-        unavailable_repos, "results/unavailable_repos.txt", "Unavailable repositories:"
+        unavailable_repos,
+        "results/repo_lists/unavailable_repos.txt",
+        "Unavailable repositories:",
     )
 
     return ok_repos

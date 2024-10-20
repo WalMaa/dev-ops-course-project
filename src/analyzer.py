@@ -1,5 +1,4 @@
 import asyncio
-import pandas as pd
 import json
 import aiofiles
 import os
@@ -24,13 +23,20 @@ async def count_commit_types(file):
                         else:
                             types[commit_type] = 1
 
-            sorted_types = sorted(types.items(), key=lambda item: item[1], reverse=True)
+            sorted_types = [
+                {"type": commit_type, "count": count}
+                for commit_type, count in sorted(
+                    types.items(), key=lambda item: item[1], reverse=True
+                )
+            ]
+
+            print(sorted_types)
 
             print(f"\nFor repository {repo_name}, the following types were found:")
-            for commit_type, count in sorted_types:
-                print(f"{commit_type}: {count}")
+            for entry in sorted_types:
+                print(f"{entry["type"]}, {entry["count"]}")
 
-            return {repo_name: sorted_types}
+            return {"repository": repo_name, "refactoring_types": sorted_types}
 
     except FileNotFoundError:
         print(f"Error: File {file} not found")
@@ -45,27 +51,21 @@ async def count_commit_types(file):
         return {}
 
 
-async def analyze(src_dir, dest_dir):
-    # TODO: Better output format
+async def analyze():
     # TODO: Calculate the avg time between commits
 
     files = [
         (f.path, f.name)
-        for f in os.scandir(src_dir)
+        for f in os.scandir("results/miner_results")
         if f.is_file() and f.name.endswith(".json")
     ]
+
+    os.makedirs("results", exist_ok=True)
+    os.makedirs("results/part_c", exist_ok=True)
+
     results = await asyncio.gather(*(count_commit_types(file[0]) for file in files))
-    df = pd.DataFrame(results)
+    filename = "results/part_c/refactoring_type_results.json"
 
-    flattened_results = []
-    for result in results:
-        if result:
-            for repo_name, types in result.items():
-                for commit_type, count in types:
-                    flattened_results.append(
-                        {"repository": repo_name, "type": commit_type, "count": count}
-                    )
-
-    filename = f"{dest_dir}/refactoring_type_results.txt"
-    df = pd.DataFrame(flattened_results)
-    df.to_csv(filename, sep="\t", index=False)
+    with open(filename, "a") as file:
+        file.truncate(0)
+        json.dump(results, file)
