@@ -31,7 +31,7 @@ async def clone(directory):
         # Matti: range(0, 87)
         # Kristian: range(88, 179)
         # Arttu: range(180, 269)
-        # Walter: range(270, len(repositories))
+        # Walter: range(270, len(repositories) -1)
         for index in range(88, 179):
             command = f"git clone {repositories[index]}"
             clone_commands.append(command)

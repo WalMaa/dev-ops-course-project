@@ -4,3 +4,4 @@ test_http_result.txt
 *.sh
 results/
 *pycache*
+config.ini

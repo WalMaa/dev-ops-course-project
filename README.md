@@ -16,4 +16,7 @@ refactoring_results_dir =
 
 [executables]
 refactoring_miner_exec =
+
+[keys]
+github_apikey =
 ```
