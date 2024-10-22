@@ -15,13 +15,11 @@ async def main():
     csv_file = config["files"]["csv_file"]
     cloned_repositories_dir = config["paths"]["cloned_repositories_dir"]
     refactoring_miner_exec = config["executables"]["refactoring_miner_exec"]
-    github_apikey = config["keys"]["github_apikey"]
 
     envs = {
         "csv_file": csv_file,
         "cloned_repositories_dir": cloned_repositories_dir,
         "refactoring_miner_exec": refactoring_miner_exec,
-        "github_apikey": github_apikey,
     }
 
     for key, path in envs.items():
@@ -34,7 +32,7 @@ async def main():
     # await repository_fetcher.get_repositories(csv_file)
     # await repository_cloner.clone(cloned_repositories_dir)
     # refactoring_miner.run_miner(cloned_repositories_dir, refactoring_miner_exec)
-    await refactoring_activity_analyzer.analyze(github_apikey)
+    await refactoring_activity_analyzer.analyze(cloned_repositories_dir)
 
 
 asyncio.run(main())

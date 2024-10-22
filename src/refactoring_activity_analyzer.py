@@ -1,55 +1,58 @@
 import asyncio
-from datetime import timedelta, datetime
-from aiohttp import ClientSession, ClientError
+from pathlib import Path
+import re
+import subprocess
+from datetime import datetime
+from aiohttp import ClientSession
 import json
 import aiofiles
 import os
 
 
+def is_proper_json(data):
+    try:
+        json.loads(data)
+    except ValueError:
+        return False
+    return True
+
+
 async def count_commit_types(file):
     try:
         async with aiofiles.open(file, "r") as f:
+            repo_name = Path(file).stem
             data = await f.read()
-            data = json.loads(data)
+            if is_proper_json(data):
+                data = json.loads(data)
 
-            types = {}
-            shas = []
+                types = {}
+                shas = []
 
-            for commit in data["commits"]:
-                repo_name = commit["repository"].replace("git@github.com:", "")
+                for commit in data["commits"]:
+                    for refactoring in commit.get("refactorings", []):
+                        commit_type = refactoring.get("type")
+                        if commit_type:
+                            if commit_type in types:
+                                types[commit_type] += 1
+                            else:
+                                types[commit_type] = 1
 
-                for refactoring in commit.get("refactorings", []):
-                    commit_type = refactoring.get("type")
-                    if commit_type:
-                        if commit_type in types:
-                            types[commit_type] += 1
-                        else:
-                            types[commit_type] = 1
+                    sha = commit.get("sha1")
+                    if sha:
+                        shas.append(sha)
 
-                sha = commit.get("sha1")
-                if sha:
-                    shas.append(sha)
+                sorted_types = [
+                    {"type": commit_type, "count": count}
+                    for commit_type, count in sorted(
+                        types.items(), key=lambda item: item[1], reverse=True
+                    )
+                ]
 
-            sorted_types = [
-                {"type": commit_type, "count": count}
-                for commit_type, count in sorted(
-                    types.items(), key=lambda item: item[1], reverse=True
-                )
-            ]
-
-            # print(f"\nFor repository {repo_name}, the following types were found:")
-            # for entry in sorted_types:
-            #     print(f"{entry["type"]}, {entry["count"]}")
-            #
-            # print("\nFollowing commit ID's were found:")
-            # for id in shas:
-            #     print(id)
-
-            return {
-                "repository": repo_name,
-                "refactoring_types": sorted_types,
-                "shas": shas,
-            }
+                return {
+                    "repository": repo_name,
+                    "refactoring_types": sorted_types,
+                    "shas": shas,
+                }
 
     except FileNotFoundError:
         print(f"Error: File {file} not found")
@@ -65,62 +68,50 @@ async def count_commit_types(file):
 
 
 async def get_avg_inter_refactoring_times(
-    session, github_apikey, commit_ids, repo_name
+    session, commit_ids, repo_name, cloned_repositories_dir
 ):
-    urls = []
+    path = os.path.join(cloned_repositories_dir, repo_name)
 
+    sp_result = subprocess.run(
+        ["git", "-C", path, "log", "--pretty=format:%H %cd"],
+        capture_output=True,
+        text=True,
+    )
+
+    git_log_commits = sp_result.stdout
+    git_log_iter = git_log_commits.splitlines()
+    dates = []
+
+    # Check whether the commit matches with a commit
+    # recognized as a refactoring
     for id in commit_ids:
-        urls.append(f"https://api.github.com/repos/{repo_name}/commits/{id}")
+        for line in git_log_iter:
+            if id in line:
+                date = re.sub(r"^[^ ]* ", "", line)
+                dates.append(date)
 
-    dates = await get_all_dates_for_repository(session, github_apikey, urls)
-
-    # Convert to unix time ???
     return dates
-
-
-async def get_all_dates_for_repository(session, github_apikey, urls):
-    tasks = [get_date(session, github_apikey, url) for url in urls]
-    return await asyncio.gather(*tasks)
-
-
-async def get_date(session, github_apikey, url):
-    headers = {
-        "Authorization": f"Bearer {github_apikey}",
-    }
-
-    try:
-        async with session.get(url, headers=headers) as response:
-            if response.status == 200:
-                print(f"Got timestamp for {url}")
-                data = await response.json()
-                timestamp = data.get("commit").get("committer").get("date")
-                if timestamp:
-                    return timestamp
-            elif response.status == 403:
-                print(f"{url} returns 403, perhaps you exceeded your API limits?")
-            else:
-                print(
-                    f"Could not get timestamp for {url}, response code: {response.status}"
-                )
-
-    except ClientError as error:
-        print(f"Request failed for {url}: {str(error)}")
 
 
 def calculate_avg_time_diff(times):
     time_differences = []
-    datetime_objects = [datetime.strptime(t, "%Y-%m-%dT%H:%M:%SZ") for t in times]
+    datetime_objects = [datetime.strptime(t, "%a %b %d %H:%M:%S %Y %z") for t in times]
 
     for index in range(len(datetime_objects) - 1):
         diff = (datetime_objects[index + 1] - datetime_objects[index]).total_seconds()
         time_differences.append(diff)
 
-    avg = sum(time_differences) / len(time_differences)
+    avg = abs(sum(time_differences) / len(time_differences))
 
-    return timedelta(seconds=avg)
+    days = int(avg // 86400)
+    hours = int((avg % 86400) // 3600)
+    minutes = int((avg % 3600) // 60)
+    seconds = avg % 60
+
+    return f"{days} days, {hours} hours, {minutes} minutes, {seconds:.2f} seconds"
 
 
-async def analyze(github_apikey):
+async def analyze(cloned_repositories_dir):
     files = [
         (f.path, f.name)
         for f in os.scandir("results/miner_results")
@@ -134,15 +125,17 @@ async def analyze(github_apikey):
         results = await asyncio.gather(*(count_commit_types(file[0]) for file in files))
 
         for repository in results:
-            dates = await get_avg_inter_refactoring_times(
-                session,
-                github_apikey,
-                repository.get("shas"),
-                repository.get("repository"),
-            )
-            time_diff = calculate_avg_time_diff(dates)
-            del repository["shas"]
-            repository["avg_commit_time_diff"] = time_diff
+            if repository:
+                dates = await get_avg_inter_refactoring_times(
+                    session,
+                    repository.get("shas"),
+                    repository.get("repository"),
+                    cloned_repositories_dir,
+                )
+                if dates:
+                    time_diff = calculate_avg_time_diff(dates)
+                    del repository["shas"]
+                    repository["avg_commit_time_diff"] = time_diff
 
         filename = "results/part_c/refactoring_type_results.json"
 
