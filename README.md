@@ -12,7 +12,6 @@ csv_file =
 
 [paths]
 cloned_repositories_dir =
-refactoring_results_dir =
 
 [executables]
 refactoring_miner_exec =

@@ -29,9 +29,9 @@ async def main():
 
     os.makedirs(cloned_repositories_dir, exist_ok=True)
 
-    # await repository_fetcher.get_repositories(csv_file)
-    # await repository_cloner.clone(cloned_repositories_dir)
-    # refactoring_miner.run_miner(cloned_repositories_dir, refactoring_miner_exec)
+    await repository_fetcher.get_repositories(csv_file)
+    await repository_cloner.clone(cloned_repositories_dir)
+    refactoring_miner.run_miner(cloned_repositories_dir, refactoring_miner_exec)
     await refactoring_activity_analyzer.analyze(cloned_repositories_dir)
 
 
