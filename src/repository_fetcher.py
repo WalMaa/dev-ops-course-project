@@ -37,6 +37,9 @@ async def test_http_status(session, url):
         async with session.get(url) as response:
             print(f"{url} {response.status}")
             return f"{url} {response.status}"
+    except TimeoutError as error:
+        print(f"{url} caused timeout: {error}")
+        return f"{url} 408"
     except ClientError as error:
         print(f"Request failed for {url}: {str(error)}")
 
