@@ -9,22 +9,13 @@ import aiofiles
 import os
 
 
-def is_proper_json(data):
-    try:
-        json.loads(data)
-    except ValueError:
-        return False
-    return True
-
-
 async def count_commit_types(file):
     try:
         async with aiofiles.open(file, "r") as f:
             repo_name = Path(file).stem
-            data = await f.read()
-            if is_proper_json(data):
-                data = json.loads(data)
-
+            file_content = await f.read()
+            data = json.loads(file_content)
+            if data:
                 types = {}
                 shas = []
 
@@ -54,12 +45,12 @@ async def count_commit_types(file):
                     "shas": shas,
                 }
 
-    except FileNotFoundError:
-        print(f"Error: File {file} not found")
+    except json.JSONDecodeError:
+        print(f"{file} is invalid JSON, skipping")
         return {}
 
-    except json.JSONDecodeError:
-        print(f"Error: File {file} is not valid JSON")
+    except FileNotFoundError:
+        print(f"Error: File {file} not found")
         return {}
 
     except Exception as e:
@@ -104,11 +95,9 @@ def calculate_avg_time_diff(times):
     avg = abs(sum(time_differences) / len(time_differences))
 
     days = int(avg // 86400)
-    hours = int((avg % 86400) // 3600)
-    minutes = int((avg % 3600) // 60)
-    seconds = avg % 60
+    hours = int(avg // 3600)
 
-    return f"{days} days, {hours} hours, {minutes} minutes, {seconds:.2f} seconds"
+    return f"{hours} hours, which is ~{days} days"
 
 
 async def analyze(cloned_repositories_dir):
@@ -119,7 +108,7 @@ async def analyze(cloned_repositories_dir):
     ]
 
     os.makedirs("results", exist_ok=True)
-    os.makedirs("results/part_c", exist_ok=True)
+    os.makedirs("results/refactoring_activity", exist_ok=True)
 
     async with ClientSession() as session:
         results = await asyncio.gather(*(count_commit_types(file[0]) for file in files))
@@ -137,7 +126,7 @@ async def analyze(cloned_repositories_dir):
                     del repository["shas"]
                     repository["avg_commit_time_diff"] = time_diff
 
-        filename = "results/part_c/refactoring_type_results.json"
+        filename = "results/refactoring_activity/refactoring_type_results.json"
 
         with open(filename, "a") as file:
             file.truncate(0)
