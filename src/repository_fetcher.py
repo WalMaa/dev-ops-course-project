@@ -1,7 +1,7 @@
 import pandas as pd
 import re
 import asyncio
-from aiohttp import ClientSession, ClientError
+from aiohttp import ClientSession, ClientError, ClientTimeout
 import os
 
 
@@ -34,14 +34,17 @@ async def get_http_statuses_for_urls(session, urls):
 
 async def test_http_status(session, url):
     try:
-        async with session.get(url) as response:
+        async with session.get(url, timeout=ClientTimeout(total=10)) as response:
             print(f"{url} {response.status}")
             return f"{url} {response.status}"
-    except TimeoutError as error:
+
+    except asyncio.TimeoutError as error:
         print(f"{url} caused timeout: {error}")
         return f"{url} 408"
+
     except ClientError as error:
         print(f"Request failed for {url}: {str(error)}")
+        return f"{url} request failed"
 
 
 def write_to_text_file(collection, filepath):
