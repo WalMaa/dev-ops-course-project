@@ -130,14 +130,14 @@ async def get_repositories(csv_file):
             )
 
     # Write the available repos to a file
-    write_to_text_file(ok_repos, "results/repo_lists/ok_repos.txt")
+    write_to_text_file(
+        sorted(ok_repos, key=str.casefold), "results/repo_lists/ok_repos.txt"
+    )
     print("\nOK repositories are available in ok_repos.txt file")
 
     # Write the unavailable repos to a file
     write_to_text_file_and_print(
-        unavailable_repos,
+        sorted(unavailable_repos, key=str.casefold),
         "results/repo_lists/unavailable_repos.txt",
         "Unavailable repositories:",
     )
-
-    return ok_repos
