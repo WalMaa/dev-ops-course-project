@@ -34,12 +34,12 @@ async def get_http_statuses_for_urls(session, urls):
 
 async def test_http_status(session, url):
     try:
-        async with session.get(url, timeout=ClientTimeout(total=10)) as response:
+        async with session.get(url, timeout=ClientTimeout(total=60)) as response:
             print(f"{url} {response.status}")
             return f"{url} {response.status}"
 
-    except asyncio.TimeoutError as error:
-        print(f"{url} caused timeout: {error}")
+    except asyncio.TimeoutError:
+        print(f"{url} caused timeout")
         return f"{url} 408"
 
     except ClientError as error:
@@ -123,17 +123,14 @@ async def get_repositories(csv_file):
     write_to_text_file(http_statuses, "results/repo_lists/https_statuses.txt")
 
     # Sort the received http responses to 200 OK and 301/400 NOT OK
-    for status in http_statuses:
+    ssh_statuses = convert_https_to_ssh(http_statuses)
+    for status in ssh_statuses:
         if "200" in status:
             stripped_status = re.sub(r" \d+$", "", status)
-            ok_repos.append(
-                stripped_status.replace("https://github.com/", "git@github.com:")
-            )
+            ok_repos.append(stripped_status)
         else:
             stripped_status = re.sub(r" \d+$", "", status)
-            unavailable_repos.append(
-                stripped_status.replace("https://github.com/", "git@github.com:")
-            )
+            unavailable_repos.append(stripped_status)
 
     # Write the available repos to a file
     write_to_text_file(
@@ -146,4 +143,11 @@ async def get_repositories(csv_file):
         sorted(unavailable_repos, key=str.casefold),
         "results/repo_lists/unavailable_repos.txt",
         "Unavailable repositories:",
+    )
+
+    count_ok = len(ok_repos)
+    count_unavailable = len(unavailable_repos)
+
+    print(
+        f"Repository fetcher is finished. Found {count_ok} OK repositories and {count_unavailable} unavailable repositories."
     )
