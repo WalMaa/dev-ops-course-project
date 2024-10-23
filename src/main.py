@@ -32,9 +32,9 @@ async def main():
     # Comment / uncomment the rows below based on what you want to do
 
     await repository_fetcher.get_repositories(csv_file)
-    await repository_cloner.clone(cloned_repositories_dir)
-    refactoring_miner.run_miner(cloned_repositories_dir, refactoring_miner_exec)
-    await refactoring_activity_analyzer.analyze(cloned_repositories_dir)
+    # await repository_cloner.clone(cloned_repositories_dir)
+    # refactoring_miner.run_miner(cloned_repositories_dir, refactoring_miner_exec)
+    # await refactoring_activity_analyzer.analyze(cloned_repositories_dir)
 
 
 asyncio.run(main())

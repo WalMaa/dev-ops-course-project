@@ -7,22 +7,32 @@ import os
 
 def get_github_urls(filename):
     df = pd.read_csv(filename, low_memory=False, dtype={7: str, 8: str})
-
-    project_names = df["project"]
-
-    project_names = project_names.apply(
-        lambda project: project.removeprefix("apache_")
-        .replace("-master", "")
-        .removeprefix("apache-")
-    )
-
-    project_names = project_names.drop_duplicates()
-
+    col_headers = list(df.columns)
     github_urls = []
 
-    for project in project_names:
-        url = f"https://github.com/apache/{project}"
-        github_urls.append(url)
+    if "project" in col_headers and "organization" in col_headers:
+        for index, row in df.iterrows():
+            project = row["project"]
+            organization = row["organization"]
+
+            modified_row = (
+                project.removeprefix(f"{organization}_")
+                # replacing some common keywords
+                .replace("-master", "")
+                .replace("-builder", "")
+                .replace("-parent", "")
+                # lastly, remove the organization from the beginning
+                .removeprefix(f"{organization}-")
+            )
+
+            url = f"https://github.com/{organization}/{modified_row}"
+            if url not in github_urls:
+                github_urls.append(url)
+                print(f"Found URL: {url}")
+    else:
+        print(
+            "The source csv file does not contain expected headers 'project' and 'organization'"
+        )
 
     return github_urls
 
@@ -57,10 +67,15 @@ def write_to_text_file(collection, filepath):
 def write_to_text_file_and_print(collection, filepath, header):
     with open(filepath, "a") as file:
         file.truncate(0)
+
         print(f"\n{header}")
-        for item in collection:
-            file.write(f"{item}\n")
-            print(item)
+
+        if len(collection) > 0:
+            for item in collection:
+                file.write(f"{item}\n")
+                print(item)
+        else:
+            print("None!")
 
 
 async def run_subcommand(cmd):
@@ -106,12 +121,8 @@ async def get_repositories(csv_file):
     ok_repos = []
     unavailable_repos = []
 
-    # Write urls to a file
     write_to_text_file_and_print(
         ssh_urls, "results/repo_lists/ssh_urls.txt", "All repositories:"
-    )
-    write_to_text_file_and_print(
-        https_urls, "results/repo_lists/https_urls.txt", "All repositories:"
     )
 
     # Test the http responses of the github urls, eg. 200, 301, 400
@@ -119,12 +130,10 @@ async def get_repositories(csv_file):
         print("\nHTTP statuses of the repositories:")
         http_statuses = await get_http_statuses_for_urls(session, https_urls)
 
-    # Write the http results to a file
     write_to_text_file(http_statuses, "results/repo_lists/https_statuses.txt")
 
     # Sort the received http responses to 200 OK and 301/400 NOT OK
-    ssh_statuses = convert_https_to_ssh(http_statuses)
-    for status in ssh_statuses:
+    for status in http_statuses:
         if "200" in status:
             stripped_status = re.sub(r" \d+$", "", status)
             ok_repos.append(stripped_status)
@@ -132,13 +141,11 @@ async def get_repositories(csv_file):
             stripped_status = re.sub(r" \d+$", "", status)
             unavailable_repos.append(stripped_status)
 
-    # Write the available repos to a file
     write_to_text_file(
-        sorted(ok_repos, key=str.casefold), "results/repo_lists/ok_repos.txt"
+        sorted(convert_https_to_ssh(ok_repos), key=str.casefold),
+        "results/repo_lists/ok_repos.txt",
     )
-    print("\nOK repositories are available in ok_repos.txt file")
 
-    # Write the unavailable repos to a file
     write_to_text_file_and_print(
         sorted(unavailable_repos, key=str.casefold),
         "results/repo_lists/unavailable_repos.txt",
@@ -149,5 +156,5 @@ async def get_repositories(csv_file):
     count_unavailable = len(unavailable_repos)
 
     print(
-        f"Repository fetcher is finished. Found {count_ok} OK repositories and {count_unavailable} unavailable repositories."
+        f"\nRepository fetcher is finished. Found {count_ok} OK repositories and {count_unavailable} unavailable repositories."
     )
