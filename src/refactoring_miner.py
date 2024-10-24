@@ -1,27 +1,37 @@
 import os
+from pathlib import Path
+import json
 import concurrent.futures
+from multiprocessing import cpu_count
 import subprocess
 
 
-def run_subcommand(cmd):
-    print(cmd)
+def run_miner_subcommand(cmd):
+    try:
+        print(f"\nStarted mining: {cmd}")
 
-    with subprocess.Popen(
-        cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-    ) as proc:
-        for line in proc.stdout:
-            print(line, end="")
-        for line in proc.stderr:
-            print(line, end="")
+        result = subprocess.run(
+            cmd,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+            timeout=900,
+        )
 
-    return proc.returncode
+        print(result.stdout)
+        print(result.stderr, end="")
+        return result.returncode
+
+    except subprocess.TimeoutExpired:
+        print(f"{cmd} timed out")
+        return -1
 
 
 def run_miner(repo_path, executable):
     refactoring_commands = []
     commands_finished = 0
     commands_failed = 0
-
     repository_directories = [
         (f.path, f.name) for f in os.scandir(repo_path) if f.is_dir()
     ]
@@ -36,24 +46,35 @@ def run_miner(repo_path, executable):
         refactoring_commands.append(command)
 
     count_of_commands = len(refactoring_commands)
+    workers = max(1, cpu_count() // 2)
 
-    with concurrent.futures.ProcessPoolExecutor() as executor:
-        futures = {
-            executor.submit(run_subcommand, cmd): cmd for cmd in refactoring_commands
-        }
+    with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
+        results = executor.map(run_miner_subcommand, refactoring_commands)
 
-        for future in concurrent.futures.as_completed(futures):
-            cmd = futures[future]
-            try:
-                return_code = future.result()
-                print(f"{cmd} finished with: {return_code}")
-                commands_finished += 1
-                print(f"{commands_finished} refactorings done of {count_of_commands}")
-            except Exception as e:
+        for result in results:
+            return_code = result
+
+            if return_code != 0:
                 commands_failed += 1
-                print(f"{cmd} failed: {e}")
-                print(
-                    f"{commands_failed} refactorings failed in total of {count_of_commands}"
-                )
+            else:
+                commands_finished += 1
+                print(f"\n{commands_finished} refactorings done of {count_of_commands}")
+                print(f"{commands_failed} refactorings failed of {count_of_commands}")
 
-    print("Refactoring miner is finished")
+    failed_repositories = []
+
+    for entry in os.scandir("results/miner_results"):
+        if entry.is_file():
+            file = open(entry, "r")
+            content = file.read()
+            try:
+                json.loads(content)
+            except json.JSONDecodeError:
+                failed_repositories.append(Path(entry).stem)
+
+    if len(failed_repositories) > 0:
+        print("\nFailed to mine following repositories:")
+        for repo in failed_repositories:
+            print(repo)
+
+    print("\nRefactoring miner is finished")
