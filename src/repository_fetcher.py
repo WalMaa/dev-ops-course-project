@@ -113,6 +113,7 @@ def convert_https_to_ssh(https_urls):
 
 
 async def get_repositories(csv_file):
+    print("Repository fetcher is running...")
     https_urls = get_github_urls(csv_file)
     ssh_urls = convert_https_to_ssh(https_urls)
     os.makedirs("results", exist_ok=True)

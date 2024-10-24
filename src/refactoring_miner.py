@@ -18,6 +18,7 @@ def run_subcommand(cmd):
 
 
 def run_miner(repo_path, executable):
+    print("Refactoring miner is running")
     refactoring_commands = []
     commands_finished = 0
     commands_failed = 0
