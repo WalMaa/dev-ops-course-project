@@ -37,7 +37,5 @@ async def main():
     await refactoring_activity_analyzer.analyze(cloned_repositories_dir)
 
 
-asyncio.run(main())
-
 if __name__ == "__main__":
     asyncio.run(main())

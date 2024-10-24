@@ -46,12 +46,10 @@ def run_miner(repo_path, executable):
         refactoring_commands.append(command)
 
     count_of_commands = len(refactoring_commands)
-    workers = max(1, cpu_count() // 2)
+    workers = max(2, cpu_count())
 
     with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
-        results = executor.map(run_miner_subcommand, refactoring_commands)
-
-        for result in results:
+        for result in executor.map(run_miner_subcommand, refactoring_commands):
             return_code = result
 
             if return_code != 0:
@@ -65,12 +63,12 @@ def run_miner(repo_path, executable):
 
     for entry in os.scandir("results/miner_results"):
         if entry.is_file():
-            file = open(entry, "r")
-            content = file.read()
-            try:
-                json.loads(content)
-            except json.JSONDecodeError:
-                failed_repositories.append(Path(entry).stem)
+            with open(entry, "r") as file:
+                content = file.read()
+                try:
+                    json.loads(content)
+                except json.JSONDecodeError:
+                    failed_repositories.append(Path(entry).stem)
 
     if len(failed_repositories) > 0:
         print("\nFailed to mine following repositories:")

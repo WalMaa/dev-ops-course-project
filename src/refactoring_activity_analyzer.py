@@ -107,6 +107,10 @@ async def analyze(cloned_repositories_dir):
         if f.is_file() and f.name.endswith(".json")
     ]
 
+    if len(files) < 1:
+        print("RepositoryMiner results not found")
+        return
+
     os.makedirs("results", exist_ok=True)
     os.makedirs("results/refactoring_activity", exist_ok=True)
 
@@ -131,3 +135,7 @@ async def analyze(cloned_repositories_dir):
         with open(filename, "a") as file:
             file.truncate(0)
             json.dump(results, file)
+
+    print(
+        "Refactoring activity analyzer is finished, results are in results/refactoring_activity/refactoring_type_results.json"
+    )
