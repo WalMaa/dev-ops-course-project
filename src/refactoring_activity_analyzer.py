@@ -1,60 +1,76 @@
+import aiofiles
 import asyncio
-from pathlib import Path
+import json
+import logging
+import os
 import re
 import subprocess
-from datetime import datetime
 from aiohttp import ClientSession
-import json
-import aiofiles
-import os
+from datetime import datetime
+from pathlib import Path
+
+from util import LogLevel, log_and_print
 
 
-async def count_commit_types(file):
+async def count_commit_types(file, logger, semaphore):
     try:
-        async with aiofiles.open(file, "r") as f:
-            repo_name = Path(file).stem
-            file_content = await f.read()
-            data = json.loads(file_content)
-            if data:
-                types = {}
-                shas = []
+        async with semaphore:
+            async with aiofiles.open(file, "r") as f:
+                repo_name = Path(file).stem
+                file_content = await f.read()
+                data = json.loads(file_content)
+                if data:
+                    types = {}
+                    shas = []
 
-                for commit in data["commits"]:
-                    for refactoring in commit.get("refactorings", []):
-                        commit_type = refactoring.get("type")
-                        if commit_type:
-                            if commit_type in types:
-                                types[commit_type] += 1
-                            else:
-                                types[commit_type] = 1
-
-                    sha = commit.get("sha1")
-                    if sha:
-                        shas.append(sha)
-
-                sorted_types = [
-                    {"type": commit_type, "count": count}
-                    for commit_type, count in sorted(
-                        types.items(), key=lambda item: item[1], reverse=True
+                    log_and_print(
+                        logger,
+                        LogLevel.INFO,
+                        f"Collecting RepositoryMiner data from {repo_name}...",
                     )
-                ]
 
-                return {
-                    "repository": repo_name,
-                    "refactoring_types": sorted_types,
-                    "shas": shas,
-                }
+                    for commit in data["commits"]:
+                        for refactoring in commit.get("refactorings", []):
+                            commit_type = refactoring.get("type")
+                            if commit_type:
+                                if commit_type in types:
+                                    types[commit_type] += 1
+                                else:
+                                    types[commit_type] = 1
+
+                        sha = commit.get("sha1")
+                        if sha:
+                            shas.append(sha)
+
+                    sorted_types = [
+                        {"type": commit_type, "count": count}
+                        for commit_type, count in sorted(
+                            types.items(), key=lambda item: item[1], reverse=True
+                        )
+                    ]
+
+                    log_and_print(
+                        logger,
+                        LogLevel.INFO,
+                        f"Found {len(sorted_types)} different refactoring types from {repo_name}",
+                    )
+
+                    return {
+                        "repository": repo_name,
+                        "refactoring_types": sorted_types,
+                        "shas": shas,
+                    }
 
     except json.JSONDecodeError:
-        print(f"{file} is invalid JSON, skipping")
+        log_and_print(logger, LogLevel.ERROR, f"{file} is invalid JSON, skipping")
         return {}
 
     except FileNotFoundError:
-        print(f"Error: File {file} not found")
+        log_and_print(logger, LogLevel.ERROR, f"Error: File {file} not found")
         return {}
 
     except Exception as e:
-        print(f"Unexpected error occurred: {e}")
+        log_and_print(logger, LogLevel.ERROR, f"Unexpected error occurred: {e}")
         return {}
 
 
@@ -100,7 +116,11 @@ def calculate_avg_time_diff(times):
     return f"{hours} hours, which is ~{days} days"
 
 
-async def analyze(cloned_repositories_dir):
+async def analyze(cloned_repositories_dir, semaphore):
+    logger = logging.getLogger("refactoring_activity_analyzer_logger")
+    dest_dir = "results/refactoring_activity"
+    os.makedirs(dest_dir, exist_ok=True)
+
     files = [
         (f.path, f.name)
         for f in os.scandir("results/miner_results")
@@ -108,14 +128,23 @@ async def analyze(cloned_repositories_dir):
     ]
 
     if len(files) < 1:
-        print("RepositoryMiner results not found")
+        log_and_print(logger, LogLevel.INFO, "RepositoryMiner results not found")
         return
 
-    os.makedirs("results", exist_ok=True)
-    os.makedirs("results/refactoring_activity", exist_ok=True)
-
     async with ClientSession() as session:
-        results = await asyncio.gather(*(count_commit_types(file[0]) for file in files))
+        log_and_print(
+            logger, LogLevel.INFO, "Refactoring Activity Analyzer is starting"
+        )
+
+        results = await asyncio.gather(
+            *(count_commit_types(file[0], logger, semaphore) for file in files)
+        )
+
+        log_and_print(
+            logger,
+            LogLevel.INFO,
+            "Calculating AVG inter-refactoring times for repositories...",
+        )
 
         for repository in results:
             if repository:
@@ -130,12 +159,14 @@ async def analyze(cloned_repositories_dir):
                     del repository["shas"]
                     repository["avg_commit_time_diff"] = time_diff
 
-        filename = "results/refactoring_activity/refactoring_type_results.json"
+        filename = f"{dest_dir}/refactoring_type_results.json"
 
         with open(filename, "a") as file:
             file.truncate(0)
             json.dump(results, file)
 
-    print(
-        "Refactoring activity analyzer is finished, results are in results/refactoring_activity/refactoring_type_results.json"
+    log_and_print(
+        logger,
+        LogLevel.INFO,
+        f"Refactoring activity analyzer is finished\nActivity analyzer results are in {dest_dir}/refactoring_type_results.json",
     )
