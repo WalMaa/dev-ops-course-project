@@ -1,80 +1,104 @@
 import os
-from pathlib import Path
-import json
-import concurrent.futures
-from multiprocessing import cpu_count
-import subprocess
+import re
+import asyncio
+import logging
+
+from util import LogLevel, log_and_print
 
 
-def run_miner_subcommand(cmd):
-    try:
-        print(f"\nStarted mining: {cmd}")
+async def __handle_stream(stream, logger, log_level):
+    line = await stream.readline()
 
-        result = subprocess.run(
-            cmd,
-            shell=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            universal_newlines=True,
-            timeout=900,
+    while line:
+        line_content = line.decode().strip()
+
+        if "Processing" in line_content:
+            stripped_line = re.search(r"([^\/]*$)", line_content)
+            if stripped_line:
+                repo_and_commit = stripped_line.group(0).rstrip("...").strip()
+                hash = re.search(r"\b[0-9a-f]{40}\b", repo_and_commit)
+                if hash:
+                    log_and_print(logger, log_level, f"Mining commit {repo_and_commit}")
+        elif "Analyzed" in line_content:
+            finished_repository = re.sub(r"^.*Analyzed\s", "", line_content)
+            log_and_print(logger, log_level, f"Finished mining {finished_repository}")
+        else:
+            if "Total count:" not in line_content:
+                log_and_print(logger, log_level, line.decode().strip())
+
+        line = await stream.readline()
+
+
+async def run_subcommand(cmd_with_name, logger, semaphore):
+    cmd, name = cmd_with_name
+
+    async with semaphore:
+        proc = await asyncio.create_subprocess_shell(
+            cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
 
-        print(result.stdout)
-        print(result.stderr, end="")
-        return result.returncode
+        log_and_print(logger, LogLevel.INFO, f"Mining {name}")
 
-    except subprocess.TimeoutExpired:
-        print(f"{cmd} timed out")
-        return -1
+        await asyncio.gather(
+            __handle_stream(proc.stdout, logger, LogLevel.INFO),
+            # Miner seems to direct output to stderr instead of stdout
+            __handle_stream(proc.stderr, logger, LogLevel.INFO),
+        )
+
+        await proc.wait()
+        return proc.returncode
 
 
-def run_miner(repo_path, executable):
-    refactoring_commands = []
-    commands_finished = 0
-    commands_failed = 0
+async def run_miner(repo_path, executable, semaphore):
+    logger = logging.getLogger("miner_logger")
+    dest_dir = "results/miner_results"
+    os.makedirs(dest_dir, exist_ok=True)
+
     repository_directories = [
-        (f.path, f.name) for f in os.scandir(repo_path) if f.is_dir()
+        (f.path, f.name) for f in (os.scandir(repo_path)) if f.is_dir()
     ]
 
-    os.makedirs("results", exist_ok=True)
-    os.makedirs("results/miner_results", exist_ok=True)
+    commands_and_names = []
 
     for dir_path, dir_name in repository_directories:
         command = (
             f"{executable} -a {dir_path} -json results/miner_results/{dir_name}.json"
         )
-        refactoring_commands.append(command)
+        commands_and_names.append((command, dir_name))
 
-    count_of_commands = len(refactoring_commands)
-    workers = max(1, cpu_count() // 2)
+    tasks = [
+        asyncio.create_task(run_subcommand(command, logger, semaphore))
+        for command in commands_and_names
+    ]
 
-    with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
-        results = executor.map(run_miner_subcommand, refactoring_commands)
+    total_commands = len(commands_and_names)
+    successful_commands = 0
+    failed_commands = 0
 
-        for result in results:
-            return_code = result
+    for future in asyncio.as_completed(tasks):
+        result = await future
 
-            if return_code != 0:
-                commands_failed += 1
-            else:
-                commands_finished += 1
-                print(f"\n{commands_finished} refactorings done of {count_of_commands}")
-                print(f"{commands_failed} refactorings failed of {count_of_commands}")
+        if result == 0:
+            successful_commands += 1
+        else:
+            failed_commands += 1
 
-    failed_repositories = []
+        if successful_commands > 0:
+            log_and_print(
+                logger,
+                LogLevel.INFO,
+                f"{successful_commands} minings successful of total {total_commands}",
+            )
 
-    for entry in os.scandir("results/miner_results"):
-        if entry.is_file():
-            file = open(entry, "r")
-            content = file.read()
-            try:
-                json.loads(content)
-            except json.JSONDecodeError:
-                failed_repositories.append(Path(entry).stem)
+        if failed_commands > 0:
+            log_and_print(
+                logger,
+                LogLevel.WARNING,
+                f"{failed_commands} minings failed of total {total_commands}",
+            )
 
-    if len(failed_repositories) > 0:
-        print("\nFailed to mine following repositories:")
-        for repo in failed_repositories:
-            print(repo)
-
-    print("\nRefactoring miner is finished")
+    log_and_print(
+        logger,
+        LogLevel.INFO,
+        f"Refactoring miner is finished\nMiner results are in {dest_dir} directory",
+    )
