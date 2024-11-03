@@ -61,6 +61,7 @@ async def main():
     #     cloned_repositories_dir, refactoring_miner_exec, semaphore
     # )
     # await refactoring_activity_analyzer.analyze(cloned_repositories_dir, semaphore)
+    await refactoring_developers_effort.calculate("./results/miner_results")
     
     
 

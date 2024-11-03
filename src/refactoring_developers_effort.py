@@ -1,13 +1,26 @@
 import subprocess
 import tempfile
+import os
 
 """
 This module is responsible for calculating the touched lines of code for each refactoring and each developer effort. Task E in the project handout
 
 """
 
+async def calculate(refactoring_results_dir):
+    print("developer effort calculation")
     
+    files = [
+        (f.path, f.name)
+        for f in os.scandir(refactoring_results_dir)
+        if f.is_file() and f.name.endswith(".json")
+    ]
     
+    if len(files) < 1:
+        print("Refactoring results not found")
+        return
+    print(files)
+
     
 def get_loc(commit):
     """
@@ -29,7 +42,8 @@ def get_loc(commit):
             parts = line.split()
             if len(parts) > 3 and parts[0].isdigit():
                 loc += int(parts[2])  # Assuming the third column is the LOC
-
+                
+        
     return loc
 
 def calculate_tlocs(rc_commit, prev_commit):
