@@ -1,10 +1,10 @@
 import subprocess
 import tempfile
 import os
+import json
 
 """
 This module is responsible for calculating the touched lines of code for each refactoring and each developer effort. Task E in the project handout
-
 """
 
 async def calculate(refactoring_results_dir):
@@ -19,7 +19,31 @@ async def calculate(refactoring_results_dir):
     if len(files) < 1:
         print("Refactoring results not found")
         return
-    print(files)
+    await process_file(files[0][0])
+    
+    
+async def process_file(file_path : str):
+    """Processes a single refactoring results file.
+
+    Args:
+        file_path (str): local path to the refactoring results file
+    """
+    print(f"Processing file: {file_path}")
+
+    with open(file_path, "r") as file:
+        refactoring_results = json.load(file)
+        
+    commits = refactoring_results["commits"]
+        
+    print(commits)
+
+    for index, commit in enumerate(commits):
+        print(commit)
+
+    
+
+    
+
 
     
 def get_loc(commit):
