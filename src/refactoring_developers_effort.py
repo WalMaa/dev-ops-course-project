@@ -39,26 +39,22 @@ async def process_file(file_path : str):
 
     for index, commit in enumerate(commits):
         print(commit)
+        if len(commit["refactorings"]) == 0:
+            continue
+        if index + 1 < len(commits):
+            calculate_tlocs(commit["repository"], commit["sha1"], commits[index + 1]["sha1"])
 
     
-
-    
-
-
-    
-def get_loc(commit):
+def get_loc(repository_url: str, commit_sha: str):
     """
     Get the lines of code (LOC) for a given commit using the scc tool.
     """
     with tempfile.TemporaryDirectory() as temp_dir:
-        # Create a tar archive of the commit's contents
-        subprocess.run(["git", "archive", "--format=tar", commit], check=True, stdout=open(f"{temp_dir}/archive.tar", "wb"))
-
-        # Extract the tar archive to the temporary directory
-        subprocess.run(["tar", "-xf", f"{temp_dir}/archive.tar", "-C", temp_dir], check=True)
-
-        # Run the scc tool on the extracted contents
-        result = subprocess.run(["scc", temp_dir], capture_output=True, text=True)
+        
+        subprocess.run(["git", "clone", repository_url], check=True)
+        subprocess.run(["git", "checkout", commit_sha], check=True, cwd=temp_dir)
+        
+        result = subprocess.run(["scc"], capture_output=True, text=True)
         
         # Parse the output to get the total lines of code
         loc = 0
@@ -70,20 +66,20 @@ def get_loc(commit):
         
     return loc
 
-def calculate_tlocs(rc_commit, prev_commit):
+def calculate_tlocs(repository_url: str, rc_commit_sha: str, prev_commit_sha: str):
     """
     Calculate the total count of touched lines of code (TLOCs) for each refactoring and each developer.
     """
 
     # Get the LOC for the refactoring commit (RC)
-    rc_loc = get_loc(rc_commit)
+    rc_loc = get_loc(repository_url, rc_commit_sha)
 
     # Get the LOC for the previous commit
-    prev_loc = get_loc(prev_commit)
+    prev_loc = get_loc(repository_url, prev_commit_sha)
 
     # Calculate the TLOC as the absolute difference between both numbers
     tloc = abs(rc_loc - prev_loc)
 
-    print(f"Refactoring Commit (RC): {rc_commit}")
-    print(f"Previous Commit: {prev_commit}")
+    print(f"Refactoring Commit (RC): {rc_commit_sha}")
+    print(f"Previous Commit: {prev_commit_sha}")
     print(f"TLOC: {tloc}")
