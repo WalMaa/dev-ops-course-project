@@ -1,11 +1,14 @@
 import subprocess
-import tempfile
 import os
 import json
+import configparser
 
 """
 This module is responsible for calculating the touched lines of code for each refactoring and each developer effort. Task E in the project handout
 """
+config = configparser.ConfigParser()
+config.read("config.ini")
+cloned_repositories_dir = config["paths"]["cloned_repositories_dir"]
 
 async def calculate(refactoring_results_dir):
     print("developer effort calculation")
@@ -19,15 +22,18 @@ async def calculate(refactoring_results_dir):
     if len(files) < 1:
         print("Refactoring results not found")
         return
-    await process_file(files[0][0])
+    await process_file(files[0][0], files[0][1])
     
     
-async def process_file(file_path : str):
+async def process_file(file_path : str, file_name : str):
     """Processes a single refactoring results file.
 
     Args:
         file_path (str): local path to the refactoring results file
     """
+    
+    repository_name = file_name.replace(".json", "")
+    
     print(f"Processing file: {file_path}")
 
     with open(file_path, "r") as file:
@@ -35,47 +41,41 @@ async def process_file(file_path : str):
         
     commits = refactoring_results["commits"]
         
-    print(commits)
-
     for index, commit in enumerate(commits):
-        print(commit)
         if len(commit["refactorings"]) == 0:
             continue
         if index + 1 < len(commits):
-            calculate_tlocs(commit["repository"], commit["sha1"], commits[index + 1]["sha1"])
+            calculate_tlocs(repository_name, commit["sha1"], commits[index + 1]["sha1"])
 
     
-def get_loc(repository_url: str, commit_sha: str):
+def get_loc(repository_name: str, commit_sha: str):
     """
     Get the lines of code (LOC) for a given commit using the scc tool.
     """
-    with tempfile.TemporaryDirectory() as temp_dir:
-        
-        subprocess.run(["git", "clone", repository_url], check=True)
-        subprocess.run(["git", "checkout", commit_sha], check=True, cwd=temp_dir)
-        
-        result = subprocess.run(["scc"], capture_output=True, text=True)
-        
-        # Parse the output to get the total lines of code
-        loc = 0
-        for line in result.stdout.splitlines():
-            parts = line.split()
-            if len(parts) > 3 and parts[0].isdigit():
-                loc += int(parts[2])  # Assuming the third column is the LOC
+    subprocess.run(["git", "checkout", commit_sha], check=True, cwd=cloned_repositories_dir + "/" + repository_name)
+    
+    result = subprocess.run(["scc"], capture_output=True, text=True, cwd=cloned_repositories_dir + "/" + repository_name)
+    
+    # Parse the output to get the total lines of code
+    loc = 0
+    for line in result.stdout.splitlines():
+        parts = line.split()
+        if len(parts) > 3 and parts[0].isdigit():
+            loc += int(parts[2])  # Assuming the third column is the LOC
                 
         
     return loc
 
-def calculate_tlocs(repository_url: str, rc_commit_sha: str, prev_commit_sha: str):
+def calculate_tlocs(repository_name: str, rc_commit_sha: str, prev_commit_sha: str):
     """
     Calculate the total count of touched lines of code (TLOCs) for each refactoring and each developer.
     """
 
     # Get the LOC for the refactoring commit (RC)
-    rc_loc = get_loc(repository_url, rc_commit_sha)
+    rc_loc = get_loc(repository_name, rc_commit_sha)
 
     # Get the LOC for the previous commit
-    prev_loc = get_loc(repository_url, prev_commit_sha)
+    prev_loc = get_loc(repository_name, prev_commit_sha)
 
     # Calculate the TLOC as the absolute difference between both numbers
     tloc = abs(rc_loc - prev_loc)
