@@ -9,6 +9,7 @@ import refactoring_activity_analyzer
 import refactoring_miner
 import repository_cloner
 import repository_fetcher
+import repository_pydriller
 from util import LogLevel, log_and_print
 
 
@@ -60,7 +61,7 @@ async def main():
         cloned_repositories_dir, refactoring_miner_exec, semaphore
     )
     await refactoring_activity_analyzer.analyze(cloned_repositories_dir, semaphore)
-
+    repository_pydriller.run_pydriller(cloned_repositories_dir)  
 
 if __name__ == "__main__":
     asyncio.run(main())
