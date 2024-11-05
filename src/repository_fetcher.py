@@ -1,49 +1,65 @@
+import asyncio
+import logging
+import os
 import pandas as pd
 import re
-import asyncio
 from aiohttp import ClientSession, ClientError, ClientTimeout
-import os
+
+from util import LogLevel, log_and_print
 
 
-def get_github_urls(filename):
+def get_github_urls(filename, logger):
     df = pd.read_csv(filename, low_memory=False, dtype={7: str, 8: str})
-
-    project_names = df["project"]
-
-    project_names = project_names.apply(
-        lambda project: project.removeprefix("apache_")
-        .replace("-master", "")
-        .removeprefix("apache-")
-    )
-
-    project_names = project_names.drop_duplicates()
-
+    col_headers = list(df.columns)
     github_urls = []
 
-    for project in project_names:
-        url = f"https://github.com/apache/{project}"
-        github_urls.append(url)
+    if "project" in col_headers and "organization" in col_headers:
+        for index, row in df.iterrows():
+            project = row["project"]
+            organization = row["organization"]
+
+            modified_row = (
+                project.removeprefix(f"{organization}_")
+                # replacing some common keywords
+                .replace("-master", "")
+                .replace("-builder", "")
+                .replace("-parent", "")
+                # lastly, remove the organization from the beginning
+                .removeprefix(f"{organization}-")
+            )
+
+            url = f"https://github.com/{organization}/{modified_row}"
+            if url not in github_urls:
+                github_urls.append(url)
+                log_and_print(logger, LogLevel.INFO, f"Found URL: {url}")
+    else:
+        log_and_print(
+            logger,
+            LogLevel.ERROR,
+            "The source csv file does not contain expected headers 'project' and 'organization'",
+        )
 
     return github_urls
 
 
-async def get_http_statuses_for_urls(session, urls):
-    tasks = [test_http_status(session, url) for url in urls]
+async def get_http_statuses_for_urls(session, urls, logger, semaphore):
+    tasks = [test_http_status(session, url, logger, semaphore) for url in urls]
     return await asyncio.gather(*tasks)
 
 
-async def test_http_status(session, url):
+async def test_http_status(session, url, logger, semaphore):
     try:
-        async with session.get(url, timeout=ClientTimeout(total=10)) as response:
-            print(f"{url} {response.status}")
-            return f"{url} {response.status}"
+        async with semaphore:
+            async with session.get(url, timeout=ClientTimeout(total=60)) as response:
+                log_and_print(logger, LogLevel.INFO, f"{url} {response.status}")
+                return f"{url} {response.status}"
 
-    except asyncio.TimeoutError as error:
-        print(f"{url} caused timeout: {error}")
+    except asyncio.TimeoutError:
+        log_and_print(logger, LogLevel.INFO, f"{url} caused timeout")
         return f"{url} 408"
 
     except ClientError as error:
-        print(f"Request failed for {url}: {str(error)}")
+        log_and_print(logger, LogLevel.INFO, f"Request failed for {url}: {str(error)}")
         return f"{url} request failed"
 
 
@@ -54,27 +70,33 @@ def write_to_text_file(collection, filepath):
             file.write(f"{item}{'\n'}")
 
 
-def write_to_text_file_and_print(collection, filepath, header):
+def write_to_text_file_and_print(collection, filepath, header, logger):
     with open(filepath, "a") as file:
         file.truncate(0)
-        print(f"\n{header}")
-        for item in collection:
-            file.write(f"{item}\n")
-            print(item)
+
+        log_and_print(logger, LogLevel.INFO, f"\n{header}")
+
+        if len(collection) > 0:
+            for item in collection:
+                file.write(f"{item}\n")
+                log_and_print(logger, LogLevel.INFO, item)
+        else:
+            log_and_print(logger, LogLevel.INFO, "None!")
 
 
-async def run_subcommand(cmd):
-    proc = await asyncio.create_subprocess_shell(
-        cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-    )
+async def run_subcommand(cmd, logger, semaphore):
+    async with semaphore:
+        proc = await asyncio.create_subprocess_shell(
+            cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
 
-    stdout, stderr = await proc.communicate()
+        stdout, stderr = await proc.communicate()
 
-    print(f"[{cmd!r} exited with {proc.returncode}]")
-    if stdout:
-        print(f"[stdout]\n{stdout.decode()}")
-    if stderr:
-        print(f"[stderr]\n{stderr.decode()}")
+        log_and_print(logger, LogLevel.INFO, f"[{cmd!r} exited with {proc.returncode}]")
+        if stdout:
+            log_and_print(logger, LogLevel.INFO, f"[stdout]\n{stdout.decode()}")
+        if stderr:
+            log_and_print(logger, LogLevel.ERROR, f"[stderr]\n{stderr.decode()}")
 
 
 def convert_ssh_to_https(ssh_urls):
@@ -97,53 +119,59 @@ def convert_https_to_ssh(https_urls):
     return ssh_urls
 
 
-async def get_repositories(csv_file):
-    https_urls = get_github_urls(csv_file)
+async def get_repositories(csv_file, semaphore):
+    logger = logging.getLogger("repository_fetcher_logger")
+    https_urls = get_github_urls(csv_file, logger)
     ssh_urls = convert_https_to_ssh(https_urls)
-    os.makedirs("results", exist_ok=True)
-    os.makedirs("results/repo_lists", exist_ok=True)
+    dest_dir = "results/repo_lists"
+    os.makedirs(dest_dir, exist_ok=True)
     http_statuses = []
     ok_repos = []
     unavailable_repos = []
 
-    # Write urls to a file
     write_to_text_file_and_print(
-        ssh_urls, "results/repo_lists/ssh_urls.txt", "All repositories:"
-    )
-    write_to_text_file_and_print(
-        https_urls, "results/repo_lists/https_urls.txt", "All repositories:"
+        ssh_urls, f"{dest_dir}/ssh_urls.txt", "All repositories:", logger
     )
 
     # Test the http responses of the github urls, eg. 200, 301, 400
     async with ClientSession() as session:
         print("\nHTTP statuses of the repositories:")
-        http_statuses = await get_http_statuses_for_urls(session, https_urls)
+        http_statuses = await get_http_statuses_for_urls(
+            session, https_urls, logger, semaphore
+        )
 
-    # Write the http results to a file
-    write_to_text_file(http_statuses, "results/repo_lists/https_statuses.txt")
+    write_to_text_file(http_statuses, f"{dest_dir}/https_statuses.txt")
 
     # Sort the received http responses to 200 OK and 301/400 NOT OK
     for status in http_statuses:
         if "200" in status:
             stripped_status = re.sub(r" \d+$", "", status)
-            ok_repos.append(
-                stripped_status.replace("https://github.com/", "git@github.com:")
-            )
+            ok_repos.append(stripped_status)
         else:
             stripped_status = re.sub(r" \d+$", "", status)
-            unavailable_repos.append(
-                stripped_status.replace("https://github.com/", "git@github.com:")
-            )
+            unavailable_repos.append(stripped_status)
 
-    # Write the available repos to a file
     write_to_text_file(
-        sorted(ok_repos, key=str.casefold), "results/repo_lists/ok_repos.txt"
+        sorted(convert_https_to_ssh(ok_repos), key=str.casefold),
+        f"{dest_dir}/ok_repos.txt",
     )
-    print("\nOK repositories are available in ok_repos.txt file")
 
-    # Write the unavailable repos to a file
     write_to_text_file_and_print(
         sorted(unavailable_repos, key=str.casefold),
-        "results/repo_lists/unavailable_repos.txt",
+        f"{dest_dir}/unavailable_repos.txt",
         "Unavailable repositories:",
+        logger,
+    )
+
+    count_ok = len(ok_repos)
+    count_unavailable = len(unavailable_repos)
+
+    log_and_print(
+        logger,
+        LogLevel.INFO,
+        f"""\nRepository fetcher is finished."""
+        f"""\nFound {count_ok} OK repositories and"""
+        f""" {count_unavailable} unavailable repositories."""
+        f"""\nOk repos are in {dest_dir}/ok_repos.txt"""
+        f"""\nUnavailable repos are in {dest_dir}/unavailable_repos.txt""",
     )

@@ -1,20 +1,30 @@
 import asyncio
+import logging
 import os
 import configparser
+from datetime import datetime
+from multiprocessing import cpu_count
 
 import refactoring_activity_analyzer
 import refactoring_miner
 import repository_cloner
 import repository_fetcher
+from util import LogLevel, log_and_print
 
 
 async def main():
+    logger = logging.getLogger("main")
     config = configparser.ConfigParser()
     config.read("config.ini")
 
     csv_file = config["files"]["csv_file"]
     cloned_repositories_dir = config["paths"]["cloned_repositories_dir"]
     refactoring_miner_exec = config["executables"]["refactoring_miner_exec"]
+
+    timestamp = datetime.now().strftime("%d%m%Y_%H%M%S")
+    logging.basicConfig(
+        filename=f"logs/log_{timestamp}.log", encoding="utf-8", level=logging.DEBUG
+    )
 
     envs = {
         "csv_file": csv_file,
@@ -28,11 +38,29 @@ async def main():
             exit(1)
 
     os.makedirs(cloned_repositories_dir, exist_ok=True)
+    os.makedirs("results", exist_ok=True)
 
-    await repository_fetcher.get_repositories(csv_file)
-    # await repository_cloner.clone(cloned_repositories_dir)
-    # refactoring_miner.run_miner(cloned_repositories_dir, refactoring_miner_exec)
-    # await refactoring_activity_analyzer.analyze(cloned_repositories_dir)
+    cpus = cpu_count()
+    max_procs = max(1, cpus // 2)
+    semaphore = asyncio.Semaphore(max_procs)
+
+    log_and_print(
+        logger,
+        LogLevel.INFO,
+        f"""CPU count on this machine is {cpus}\n"""
+        f"""Limiting the no. of async operations to {max_procs} to optimize performance""",
+    )
+
+    # Comment / uncomment the rows below based on what you want to do
+    await repository_fetcher.get_repositories(csv_file, semaphore)
+    await repository_cloner.clone(
+        cloned_repositories_dir,
+    )
+    await refactoring_miner.run_miner(
+        cloned_repositories_dir, refactoring_miner_exec, semaphore
+    )
+    await refactoring_activity_analyzer.analyze(cloned_repositories_dir, semaphore)
 
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())

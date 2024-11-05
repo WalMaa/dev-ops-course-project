@@ -5,3 +5,5 @@ test_http_result.txt
 results/
 *pycache*
 config.ini
+logs/
+.idea/
