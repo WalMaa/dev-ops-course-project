@@ -30,6 +30,22 @@ def pydrill(repository_path):
     with open(result, "w") as f:
         json.dump(data, f, indent=4)
 
+def get_refactured_commits(repository):
+    repository = f"results/miner_results/{repository}.json"
+    
+    if not os.path.isfile(repository):
+        print(f"Warning! Could not find {repository}.json from miner results")
+        return[]
+    
+    with open(repository, 'r') as file:
+        minerJSON = json.load(file)
+    
+    filtered_commits = [
+        filtered_commit["sha1"] for filtered_commit in minerJSON["commits"] if filtered_commit["refactorings"] 
+    ]
+    
+    return filtered_commits
+
 def run_pydriller(cloned_repositories_dir):
     
     count = 0
@@ -48,5 +64,8 @@ def run_pydriller(cloned_repositories_dir):
     for repo_path in repository_directories:
         count +=1
         repo_name = os.path.basename(repo_path.strip('/'))
-        print(f"Pydriller started: {repo_name} ({count}/{repository_count})")       
+        print(f"Pydriller started: {repo_name} ({count}/{repository_count})")
+        filtered_commits = get_refactured_commits(repo_name)
+        counted_commits = len(filtered_commits)
+        print(f"Total count of refactored commits: {counted_commits}")       
         pydrill(repo_path)
