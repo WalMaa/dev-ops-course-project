@@ -41,7 +41,7 @@ def get_refactured_commits(repository):
         minerJSON = json.load(file)
     
     filtered_commits = [
-        filtered_commit["sha1"] for filtered_commit in minerJSON["commits"] if filtered_commit["refactorings"] 
+        commit["sha1"] for commit in minerJSON["commits"] if commit["refactorings"] 
     ]
     
     return filtered_commits
