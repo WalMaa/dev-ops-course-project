@@ -9,17 +9,22 @@ def pydrill(repository_path, filtered_commits):
         commit_data = {
             "commit_hash": commit.hash,
             "previous_commit_hash": commit.parents[0] if commit.parents else None,
-            "added lines": commit.insertions,
-            "deleted lines": commit.deletions,
-            "modified_files": [],
+            "diff stats": [],
+            "diff content": [],
         }
         for m in commit.modified_files:
-            file_change_data = {
+            diff_stats = {
                 "modified": m.filename,
                 "added_lines": m.added_lines,
                 "deleted_lines": m.deleted_lines,
             }
-            commit_data["modified_files"].append(file_change_data)
+            diff_content = {
+                "modified": m.filename,
+                "diff": m.diff_parsed,
+            }
+            
+            commit_data["diff stats"].append(diff_stats)
+            commit_data["diff content"].append(diff_content)
 
         data.append(commit_data)
     
