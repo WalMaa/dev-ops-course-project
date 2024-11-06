@@ -30,7 +30,7 @@ def pydrill(repository_path):
     with open(result, "w") as f:
         json.dump(data, f, indent=4)
 
-def get_refactured_commits(repository):
+def get_refactored_commits(repository):
     repository_path = f"results/miner_results/{repository}.json"
     
     try:
@@ -79,7 +79,7 @@ def run_pydriller(cloned_repositories_dir):
         repo_name = os.path.basename(repo_path.strip('/'))
         print(f"\nChecking repository: {repo_name}. ({count}/{len(repository_directories)})")
         
-        filtered_commits = get_refactured_commits(repo_name)
+        filtered_commits = get_refactored_commits(repo_name)
         
         if filtered_commits:
             print(f"Total count of refactored commits: {len(filtered_commits)}")
