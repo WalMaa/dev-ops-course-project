@@ -55,16 +55,17 @@ def get_loc(repository_name: str, commit_sha: str):
     subprocess.run(["git", "checkout", commit_sha], check=True, cwd=cloned_repositories_dir + "/" + repository_name)
     
     result = subprocess.run(["scc", "--no-cocomo", "--no-complexity", "--no-size"],encoding="utf-8",  capture_output=True, text=True, cwd=cloned_repositories_dir + "/" + repository_name)
-    print("SCC Result", result.stdout)
+    # print("SCC Result", result.stdout)
     
     # Parse the output to get the total lines of code
     loc = 0
     for line in result.stdout.splitlines():
         parts = line.split()
-        if len(parts) > 3 and parts[0].isdigit():
-            loc += int(parts[2])  # Assuming the third column is the LOC
+        print(parts)
+        if (len(parts) > 1 and parts[0] == "Total"):
+            loc = int(parts[2])
                 
-        
+    print(f"LOC for commit {commit_sha}: {loc}")
     return loc
 
 def calculate_tlocs(repository_name: str, rc_commit_sha: str, prev_commit_sha: str):
@@ -78,8 +79,7 @@ def calculate_tlocs(repository_name: str, rc_commit_sha: str, prev_commit_sha: s
     # Get the LOC for the previous commit
     prev_loc = get_loc(repository_name, prev_commit_sha)
 
-    # Calculate the TLOC as the absolute difference between both numbers
-    tloc = abs(rc_loc - prev_loc)
+    tloc = rc_loc - prev_loc
 
     print(f"Refactoring Commit (RC): {rc_commit_sha}")
     print(f"Previous Commit: {prev_commit_sha}")
