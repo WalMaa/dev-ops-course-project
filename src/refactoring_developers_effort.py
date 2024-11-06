@@ -24,17 +24,13 @@ async def calculate(refactoring_results_dir):
     if len(files) < 1:
         print("Refactoring results not found")
         return
-    for file in files:
+    for index,file in enumerate(files):
+        print(f"Processing file {index + 1} of {len(files)}")
         await process_file(file[0], file[1])
         
     
     
 async def process_file(file_path : str, file_name : str):
-    """Processes a single refactoring results file.
-
-    Args:
-        file_path (str): local path to the refactoring results file
-    """
     
     repository_name = file_name.replace(".json", "")
     
@@ -64,20 +60,26 @@ def get_loc(repository_name: str, commit_sha: str):
     if os.path.exists(lock_file):
         os.remove(lock_file)
     
-    subprocess.run(["git", "checkout", "-f", commit_sha], capture_output=False,  check=True, cwd=repo_dir)
+    try:
+        subprocess.run(["git", "checkout", "-f", commit_sha], check=True, cwd=repo_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except subprocess.CalledProcessError as e:
+        print(f"Error checking out commit {commit_sha} in repository {repository_name}: {e}")
+        return 0
+    except OSError as e:
+        if e.errno == 36:  # Filename too long
+            print(f"Error: Filename too long in repository {repository_name} for commit {commit_sha}")
+            return 0
+
     
     result = subprocess.run(["scc", "--no-cocomo", "--no-complexity", "--no-size"], encoding="utf-8",  capture_output=True, text=True, cwd=repo_dir)
-    # print("SCC Result", result.stdout)
     
     # Parse the output to get the total lines of code
     loc = 0
     for line in result.stdout.splitlines():
         parts = line.split()
-        print(parts)
         if (len(parts) > 1 and parts[0] == "Total"):
             loc = int(parts[2])
                 
-    print(f"LOC for commit {commit_sha}: {loc}")
     return loc
 
 def calculate_tlocs(repository_name: str, rc_commit_sha: str, prev_commit_sha: str):
@@ -85,12 +87,6 @@ def calculate_tlocs(repository_name: str, rc_commit_sha: str, prev_commit_sha: s
     if rc_commit_sha == prev_commit_sha:
         raise ValueError("RC and previous commit SHAs must be different")
     
-    print(f"Calculating TLOCs for {repository_name} between {rc_commit_sha} and {prev_commit_sha}")
-    
-    """
-    Calculate the total count of touched lines of code (TLOCs) for each refactoring and each developer.
-    """
-
     # Get the LOC for the refactoring commit (RC)
     rc_loc = get_loc(repository_name, rc_commit_sha)
 
