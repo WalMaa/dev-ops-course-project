@@ -33,19 +33,27 @@ def pydrill(repository_path):
 def get_refactured_commits(repository):
     repository = f"results/miner_results/{repository}.json"
     
-    if not os.path.isfile(repository):
-        print(f"Warning! Could not find {repository}.json from miner results")
-        return[]
-    
-    with open(repository, 'r') as file:
-        minerJSON = json.load(file)
-    
-    filtered_commits = [
-        commit["sha1"] for commit in minerJSON["commits"] if commit["refactorings"] 
-    ]
-    
-    return filtered_commits
+    try:
+        with open(repository, 'r') as file:
+            minerJSON = json.load(file)
+        
+        filtered_commits = [
+            commit["sha1"] for commit in minerJSON["commits"] if commit["refactorings"] 
+        ]
+        return filtered_commits
 
+    except json.JSONDecodeError:
+        print(f"Warning! Could not decode {repository}")
+        return []
+    
+    except FileNotFoundError:
+        print(f"Warning! Could not find {repository}")
+        return []
+    
+    except Exception as e:
+        print(f"Unexpected error occurred: {e}")
+        return {}
+    
 def run_pydriller(cloned_repositories_dir):
     
     count = 0
