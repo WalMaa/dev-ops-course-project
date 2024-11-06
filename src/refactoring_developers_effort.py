@@ -36,7 +36,7 @@ async def process_file(file_path : str, file_name : str):
     
     print(f"Processing file: {file_path}")
 
-    with open(file_path, "r") as file:
+    with open(file_path, "r", encoding="utf-8") as file:
         refactoring_results = json.load(file)
         
     commits = refactoring_results["commits"]
@@ -54,7 +54,8 @@ def get_loc(repository_name: str, commit_sha: str):
     """
     subprocess.run(["git", "checkout", commit_sha], check=True, cwd=cloned_repositories_dir + "/" + repository_name)
     
-    result = subprocess.run(["scc"], capture_output=True, text=True, cwd=cloned_repositories_dir + "/" + repository_name)
+    result = subprocess.run(["scc", "--no-cocomo", "--no-complexity", "--no-size"],encoding="utf-8",  capture_output=True, text=True, cwd=cloned_repositories_dir + "/" + repository_name)
+    print("SCC Result", result.stdout)
     
     # Parse the output to get the total lines of code
     loc = 0
