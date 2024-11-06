@@ -2,10 +2,10 @@ import json
 import os
 from pydriller import Repository
 
-def pydrill(repository_path):
+def pydrill(repository_path, filtered_commits):
     data = []
-
-    for commit in Repository(repository_path).traverse_commits():
+    
+    for commit in Repository(repository_path, only_commits=filtered_commits).traverse_commits():
         commit_data = {
             "commit_hash": commit.hash,
             "previous_commit_hash": commit.parents[0] if commit.parents else None,
@@ -84,7 +84,7 @@ def run_pydriller(cloned_repositories_dir):
         if filtered_commits:
             print(f"Total count of refactored commits: {len(filtered_commits)}")
             print(f"Pydriller started: {repo_name}")
-            pydrill(repo_path)
+            pydrill(repo_path, filtered_commits)
             succesful_repos.append(repo_name)
         else:
             print(f"No refactoring detected in {repo_name}, skipping repository.")
