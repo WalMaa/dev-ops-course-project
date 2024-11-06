@@ -31,14 +31,14 @@ def pydrill(repository_path):
         json.dump(data, f, indent=4)
 
 def get_refactured_commits(repository):
-    repository = f"results/miner_results/{repository}.json"
+    repository_path = f"results/miner_results/{repository}.json"
     
     try:
-        with open(repository, 'r') as file:
+        with open(repository_path, 'r') as file:
             minerJSON = json.load(file)
         
         filtered_commits = [
-            commit["sha1"] for commit in minerJSON["commits"] if commit["refactorings"] 
+            commit["sha1"] for commit in minerJSON["commits"] if commit.get("refactorings")
         ]
         return filtered_commits
 
@@ -57,6 +57,11 @@ def get_refactured_commits(repository):
 def run_pydriller(cloned_repositories_dir):
     
     count = 0
+    succesful = 0
+    skipped = 0
+    error = 0
+    succesful_repos = []
+    skipped_repos = []
     
     os.makedirs("results", exist_ok=True)
     os.makedirs("results/pydriller_results", exist_ok=True)
@@ -67,13 +72,38 @@ def run_pydriller(cloned_repositories_dir):
     
     repository_count = len(repository_directories)
     
-    print(f"Total count of repositories: {repository_count}")
+    if repository_count == 0:
+        print(f"No cloned repositories found in {cloned_repositories_dir}")
+        return
+    
+    print(f"\nTotal count of repositories: {repository_count}")
     
     for repo_path in repository_directories:
-        count +=1
+        count += 1
         repo_name = os.path.basename(repo_path.strip('/'))
-        print(f"Pydriller started: {repo_name} ({count}/{repository_count})")
+        print(f"\nChecking repository: {repo_name}. ({count}/{repository_count})")
+        
         filtered_commits = get_refactured_commits(repo_name)
-        counted_commits = len(filtered_commits)
-        print(f"Total count of refactored commits: {counted_commits}")       
-        pydrill(repo_path)
+        
+        if filtered_commits:
+            print(f"Total count of refactored commits: {len(filtered_commits)}")
+            print(f"Pydriller started: {repo_name}")
+            pydrill(repo_path)
+            succesful += 1
+            succesful_repos.append(repo_name)
+        else:
+            print(f"No refactoring detected in {repo_name}, skipping repository.")
+            skipped += 1
+            skipped_repos.append(repo_name)
+    
+    if succesful_repos:
+        succesful_repos.sort()
+        print(f"\nSuccessfully pydrilled {succesful}/{repository_count} repositories:")
+        for repo in succesful_repos:
+            print(f"-{repo}")
+
+    if skipped_repos:
+        skipped_repos.sort()
+        print(f"\nSkipped {skipped}/{repository_count} repositories due to no refactoring detected or failure:")
+        for repo in skipped_repos:
+            print(f"-{repo}")
