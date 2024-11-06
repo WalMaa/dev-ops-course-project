@@ -52,7 +52,7 @@ def get_refactured_commits(repository):
     
     except Exception as e:
         print(f"Unexpected error occurred: {e}")
-        return {}
+        return []
     
 def run_pydriller(cloned_repositories_dir):
     
