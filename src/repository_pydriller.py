@@ -111,7 +111,7 @@ def run_pydriller(cloned_repositories_dir):
 
     if skipped_repos:
         skipped_repos.sort()
-        log_and_print(logger, LogLevel.INFO, f"\nSkipped {len(skipped_repos)}/{len(repository_directories)} repositories due to no refactoring detected or failure:")
+        log_and_print(logger, LogLevel.INFO, f"\nSkipped {len(skipped_repos)}/{len(repository_directories)} repositories due to no refactoring detected:")
         for repo in skipped_repos:
             log_and_print(logger, LogLevel.INFO, f"-{repo}")
     
