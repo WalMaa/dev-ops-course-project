@@ -47,9 +47,13 @@ async def process_file(file_path : str, file_name : str):
             continue
         if index + 1 < len(commits):
             try:
+                prev_commit = commits[index + 1]
+                if prev_commit is None:
+                    print(f"Could not find previous commit for {commit['sha1']} in repository {repository_name}")
+                    continue
                 commiter_name, tlocs = get_commit_tloc_info(repository_name, commit["sha1"], commits[index + 1]["sha1"]) 
                 # TLOC per commit
-                commit_results.append({"commit": commit["sha1"], "commiter": commiter_name, "tlocs": tlocs})
+                commit_results.append({"commit": commit["sha1"], "prev_commit":  prev_commit['sha1'], "commiter": commiter_name, "tlocs": tlocs})
             except ValueError as e:
                 print(f"Error calculating TLOCs for commit {commit['sha1']} in repository {repository_name}: {e}")
             
