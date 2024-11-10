@@ -10,6 +10,7 @@ import refactoring_miner
 import repository_cloner
 import repository_fetcher
 import refactoring_tlocs
+import repository_pydriller
 from util import LogLevel, log_and_print
 
 
@@ -53,18 +54,16 @@ async def main():
     )
 
     # Comment / uncomment the rows below based on what you want to do
-    # await repository_fetcher.get_repositories(csv_file, semaphore)
-    # await repository_cloner.clone(
-    #     cloned_repositories_dir,
-    # )
-    # await refactoring_miner.run_miner(
-    #     cloned_repositories_dir, refactoring_miner_exec, semaphore
-    # )
-    # await refactoring_activity_analyzer.analyze(cloned_repositories_dir, semaphore)
+    await repository_fetcher.get_repositories(csv_file, semaphore)
+    await repository_cloner.clone(
+        cloned_repositories_dir,
+    )
+    await refactoring_miner.run_miner(
+        cloned_repositories_dir, refactoring_miner_exec, semaphore
+    )
+    await refactoring_activity_analyzer.analyze(cloned_repositories_dir, semaphore)
+    repository_pydriller.run_pydriller(cloned_repositories_dir)  
     await refactoring_tlocs.calculate("./results/miner_results")
-    
-    
-
 
 if __name__ == "__main__":
     asyncio.run(main())
