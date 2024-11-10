@@ -9,7 +9,7 @@ import refactoring_activity_analyzer
 import refactoring_miner
 import repository_cloner
 import repository_fetcher
-import refactoring_developers_effort
+import refactoring_tlocs
 from util import LogLevel, log_and_print
 
 
@@ -61,7 +61,7 @@ async def main():
     #     cloned_repositories_dir, refactoring_miner_exec, semaphore
     # )
     # await refactoring_activity_analyzer.analyze(cloned_repositories_dir, semaphore)
-    await refactoring_developers_effort.calculate("./results/miner_results")
+    await refactoring_tlocs.calculate("./results/miner_results")
     
     
 

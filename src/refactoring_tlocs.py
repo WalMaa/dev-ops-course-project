@@ -46,8 +46,8 @@ async def process_file(file_path : str, file_name : str):
             continue
         if index + 1 < len(commits):
             try:
-                tlocs = calculate_tlocs(repository_name, commit["sha1"], commits[index + 1]["sha1"]) 
-                commit_results.append({"commit": commit["sha1"], "tlocs": tlocs})
+                commiter_name, tlocs = get_commit_tloc_info(repository_name, commit["sha1"], commits[index + 1]["sha1"]) 
+                commit_results.append({"commit": commit["sha1"], "commiter": commiter_name, "tlocs": tlocs})
             except ValueError as e:
                 print(f"Error calculating TLOCs for commit {commit['sha1']} in repository {repository_name}: {e}")
             
@@ -59,7 +59,7 @@ async def process_file(file_path : str, file_name : str):
                         "refactorings": commit_results}, file)
 
     
-def get_loc(repository_name: str, commit_sha: str):
+def process_commit(repository_name: str, commit_sha: str):
     repo_dir = os.path.join(cloned_repositories_dir, repository_name)
     lock_file = os.path.join(repo_dir, ".git", "index.lock")
     
@@ -68,15 +68,17 @@ def get_loc(repository_name: str, commit_sha: str):
     
     try:
         subprocess.run(["git", "checkout", "-f", commit_sha], check=True, cwd=repo_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        commit = subprocess.run(["git", "log", "-1", "--pretty=format:%cn" , commit_sha], encoding="utf-8", capture_output=True, text=True, check=True, cwd=repo_dir)
+        committer_name = commit.stdout.strip()
         result = subprocess.run(["scc", "--no-cocomo", "--no-complexity", "--no-size"], encoding="utf-8",  capture_output=True, text=True, cwd=repo_dir)
-        # Parse the output to get the total lines of code
+        # Parse the scc output to get the LOC
         loc = 0
         for line in result.stdout.splitlines():
             parts = line.split()
             if (len(parts) > 1 and parts[0] == "Total"):
                 loc = int(parts[2])
                     
-        return loc
+        return committer_name, loc
     
     except subprocess.CalledProcessError as e:
         print(f"Error checking out commit {commit_sha} in repository {repository_name}: {e}")
@@ -87,15 +89,17 @@ def get_loc(repository_name: str, commit_sha: str):
     
     
 
-def calculate_tlocs(repository_name: str, rc_commit_sha: str, prev_commit_sha: str):
+def get_commit_tloc_info(repository_name: str, rc_commit_sha: str, prev_commit_sha: str) -> tuple:
     
     if rc_commit_sha == prev_commit_sha:
         raise ValueError("RC and previous commit SHAs must be different")
     
-    rc_loc = get_loc(repository_name, rc_commit_sha)
-    prev_loc = get_loc(repository_name, prev_commit_sha)
+    refactored_commit = process_commit(repository_name, rc_commit_sha)
+    prev_commit = process_commit(repository_name, prev_commit_sha)
     
-    if rc_loc is None or prev_loc is None:
+    if refactored_commit is None or prev_commit is None:
         raise ValueError("Could not calculate LOC for one of the commits")
-
-    return rc_loc - prev_loc
+    
+    tloc = refactored_commit[1] - prev_commit[1]
+    
+    return refactored_commit[0], tloc
