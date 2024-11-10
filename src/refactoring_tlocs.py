@@ -2,6 +2,7 @@ import subprocess
 import os
 import json
 import configparser
+from collections import defaultdict
 
 """
 This module is responsible for calculating the touched lines of code for each refactoring and each developer effort. Task E in the project handout
@@ -47,6 +48,7 @@ async def process_file(file_path : str, file_name : str):
         if index + 1 < len(commits):
             try:
                 commiter_name, tlocs = get_commit_tloc_info(repository_name, commit["sha1"], commits[index + 1]["sha1"]) 
+                # TLOC per commit
                 commit_results.append({"commit": commit["sha1"], "commiter": commiter_name, "tlocs": tlocs})
             except ValueError as e:
                 print(f"Error calculating TLOCs for commit {commit['sha1']} in repository {repository_name}: {e}")
@@ -54,9 +56,32 @@ async def process_file(file_path : str, file_name : str):
     if len(commit_results) == 0:
         print(f"Was unable to calculate refactorings for: {repository_name}")
     else:
+        # Track adds/deletes per contributor
+        contributor_stats = defaultdict(lambda: {"adds": 0, "deletes": 0})
+        
+        for commit in commit_results:
+            committer = commit["commiter"]
+            tlocs = commit["tlocs"]
+            
+            if tlocs > 0:
+                contributor_stats[committer]["adds"] += tlocs
+            else:
+                contributor_stats[committer]["deletes"] += abs(tlocs)
+
+        # Transform to list of contributors with their stats
+        contributors = [
+            {
+                "name": committer,
+                "adds": stats["adds"],
+                "deletes": stats["deletes"]
+            }
+            for committer, stats in contributor_stats.items()
+        ]
+                
         with open(f"{dest_dir}/{repository_name}.json", "w", encoding="utf-8") as file:
             json.dump({"repository": repository_name,
-                        "refactorings": commit_results}, file)
+                        "refactorings": commit_results,
+                        "contributors": contributors}, file)
 
     
 def process_commit(repository_name: str, commit_sha: str):
