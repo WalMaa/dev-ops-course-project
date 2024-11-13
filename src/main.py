@@ -62,8 +62,10 @@ async def main():
         cloned_repositories_dir, refactoring_miner_exec, semaphore
     )
     await refactoring_activity_analyzer.analyze(cloned_repositories_dir, semaphore)
-    repository_pydriller.run_pydriller(cloned_repositories_dir)  
+    repository_pydriller.run_pydriller(cloned_repositories_dir)
     await refactoring_tlocs.calculate("./results/miner_results")
+
 
 if __name__ == "__main__":
     asyncio.run(main())
+

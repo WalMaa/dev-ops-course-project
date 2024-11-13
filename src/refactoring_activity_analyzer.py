@@ -108,12 +108,15 @@ def calculate_avg_time_diff(times):
         diff = (datetime_objects[index + 1] - datetime_objects[index]).total_seconds()
         time_differences.append(diff)
 
-    avg = abs(sum(time_differences) / len(time_differences))
+    if len(time_differences) > 0:
+        avg = abs(sum(time_differences) / len(time_differences))
 
-    days = int(avg // 86400)
-    hours = int(avg // 3600)
+        days = int(avg // 86400)
+        hours = int(avg // 3600)
 
-    return f"{hours} hours, which is ~{days} days"
+        return f"{hours} hours, which is ~{days} days"
+
+    return "0"
 
 
 async def analyze(cloned_repositories_dir, semaphore):
