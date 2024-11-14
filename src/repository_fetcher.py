@@ -67,7 +67,7 @@ def write_to_text_file(collection, filepath):
     with open(filepath, "a") as file:
         file.truncate(0)
         for item in collection:
-            file.write(f"{item}{'\n'}")
+            file.write(f"{item}'\n")
 
 
 def write_to_text_file_and_print(collection, filepath, header, logger):

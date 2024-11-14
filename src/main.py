@@ -11,6 +11,8 @@ import repository_cloner
 import repository_fetcher
 import refactoring_tlocs
 import repository_pydriller
+import fetch_github_issues
+import fetch_jira_issues
 from util import LogLevel, log_and_print
 
 
@@ -65,6 +67,9 @@ async def main():
     repository_pydriller.run_pydriller(cloned_repositories_dir)
     await refactoring_tlocs.calculate("./results/miner_results")
 
+    fetch_github_issues.categorize_repos_by_issues_status("./results/repo_lists/ok_repos.txt")
+    await fetch_github_issues.fetch_issues_from_repos_in_file("./results/issues/github_issues_enabled.txt")
+    await fetch_jira_issues.fetch_and_save_issues("./results/issues", "github_issues_disabled.txt")
 
 if __name__ == "__main__":
     asyncio.run(main())
