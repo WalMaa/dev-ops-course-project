@@ -22,5 +22,5 @@ refactoring_miner_exec =
 Provide the Github Token in virtual environment by:
 
 ```export
-export GITHUB_TOKEN <your token here>
+export GITHUB_TOKEN = <your token here>
 ```
