@@ -16,3 +16,11 @@ cloned_repositories_dir =
 [executables]
 refactoring_miner_exec =
 ```
+
+## Github Token
+
+Provide the Github Token in virtual environment by:
+
+```export
+export GITHUB_TOKEN <your token here>
+```
